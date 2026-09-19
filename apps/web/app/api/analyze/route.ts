@@ -139,28 +139,34 @@ function parseAnalyzeBody(body: unknown): {
 }
 
 export async function POST(req: Request) {
-  const body = await req.json();
-  const { attempt, priorAttempts, session, screenshots } = parseAnalyzeBody(body);
+  try {
+    const body = await req.json();
+    const { attempt, priorAttempts, session, screenshots } = parseAnalyzeBody(body);
 
-  if (!attempt?.verdict || !attempt.code) {
-    return NextResponse.json(
-      { error: "No verdict present — analysis is locked until a verdict exists." },
-      { status: 400 }
-    );
+    if (!attempt?.verdict || !attempt.code) {
+      return NextResponse.json(
+        { error: "No verdict present — analysis is locked until a verdict exists." },
+        { status: 400 }
+      );
+    }
+
+    const heuristicResult = classify(attempt, priorAttempts, session);
+    const geminiResult = await callGemini(attempt, heuristicResult, priorAttempts, screenshots);
+
+    const finalFeedback = geminiResult
+      ? {
+          ...geminiResult,
+          chainNote: geminiResult.chainNote ?? heuristicResult.chainNote,
+          improvementNote: geminiResult.improvementNote ?? heuristicResult.improvementNote,
+          errorHistory: geminiResult.errorHistory ?? heuristicResult.errorHistory,
+        }
+      : heuristicResult;
+    const aiGenerated = geminiResult !== null;
+
+    return NextResponse.json({ ...finalFeedback, aiGenerated });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Analyze failed.";
+    console.error("Analyze route failed:", err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const heuristicResult = classify(attempt, priorAttempts, session);
-  const geminiResult = await callGemini(attempt, heuristicResult, priorAttempts, screenshots);
-
-  const finalFeedback = geminiResult
-    ? {
-        ...geminiResult,
-        chainNote: geminiResult.chainNote ?? heuristicResult.chainNote,
-        improvementNote: geminiResult.improvementNote ?? heuristicResult.improvementNote,
-        errorHistory: geminiResult.errorHistory ?? heuristicResult.errorHistory,
-      }
-    : heuristicResult;
-  const aiGenerated = geminiResult !== null;
-
-  return NextResponse.json({ ...finalFeedback, aiGenerated });
 }

@@ -21,7 +21,7 @@ export function classify(
   return {
     tags,
     summary: buildSummary(attempt, tags),
-    whatWentWrong: buildWentWrong(attempt, tags, errorHistory),
+    whatWentWrong: buildWentWrong(attempt, tags, errorHistory, session),
     whatWentWell: buildWentWell(attempt, tags, improvementNote),
     lineNotes,
     complexity,
@@ -129,7 +129,12 @@ function buildSummary(attempt: Attempt, tags: TaxonomyTag[]): string {
   return `${attempt.verdict} on ${attempt.problemTitle}. ${hint}`;
 }
 
-function buildWentWrong(attempt: Attempt, tags: TaxonomyTag[], errorHistory: string[] = []): string[] {
+function buildWentWrong(
+  attempt: Attempt,
+  tags: TaxonomyTag[],
+  errorHistory: string[] = [],
+  session?: Session | null,
+): string[] {
   const notes: string[] = [];
   if (attempt.verdict !== "AC") {
     notes.push(`Judge verdict: ${attempt.verdict}.`);
