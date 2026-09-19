@@ -61,7 +61,8 @@ export default function PracticeProblemPage() {
         body: JSON.stringify({ attempt, priorAttempts }),
       });
       if (!response.ok) {
-        throw new Error("Analyze request failed.");
+        const body= await response.json().catch(() => ({}));
+        throw new Error(body.error ?? `Analyze request failed (${response.status}).`);
       }
       const next = (await response.json()) as Feedback;
       setAnalysis(attempt.id, next);

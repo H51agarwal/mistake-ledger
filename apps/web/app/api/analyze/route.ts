@@ -1,18 +1,105 @@
 import { NextResponse } from "next/server";
-import type { Attempt } from "@shared/types";
-import { classify } from "@/lib/heuristics";
+import { Attempt, Feedback, TaxonomyTag } from "@shared/types";
+import { classify } from "@/lib/heuristics"; 
+
+const VALID_TAGS: TaxonomyTag[] = [
+  "syntax",
+  "off-by-one",
+  "wrong-ds",
+  "tle-complexity",
+  "overflow-modulo",
+  "missed-constraint",
+  "implementation-slip",
+  "lucky-ac",
+];
+
+function isValidFeedback(obj: unknown): obj is Feedback {
+  if (!obj || typeof obj !== "object") return false;
+  const f = obj as Partial<Feedback>;
+  if (!Array.isArray(f.tags) || f.tags.some((t) => !VALID_TAGS.includes(t))) return false;
+  if (typeof f.summary !== "string") return false;
+  if (!Array.isArray(f.whatWentWrong) || !Array.isArray(f.whatWentWell)) return false;
+  if (!Array.isArray(f.lineNotes)) return false;
+  if (!f.complexity || typeof f.complexity.estimated !== "string") return false;
+  if (!f.nextDrill || typeof f.nextDrill.title !== "string") return false;
+  return true;
+}
+
+async function callGemini(attempt: Attempt, heuristicResult: Feedback): Promise<Feedback | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+
+  const prompt = `You are a coding practice coach. Analyze this submission and respond with ONLY valid JSON matching this exact shape, no markdown fences, no extra text:
+
+{
+  "tags": string[] (only from: ${VALID_TAGS.join(", ")}),
+  "summary": string,
+  "whatWentWrong": string[],
+  "whatWentWell": string[],
+  "lineNotes": [{ "line": number, "note": string }],
+  "complexity": { "estimated": string, "vsConstraints": string },
+  "nextDrill": { "title": string, "reason": string }
+}
+
+Rules:
+- Do NOT provide a full corrected solution or suggest specific code fixes.
+- Do NOT suggest code changes.
+- Base your tags on this heuristic baseline: ${JSON.stringify(heuristicResult.tags)}
+- Problem: ${attempt.problemTitle}
+- Language: ${attempt.language}
+- Verdict: ${attempt.verdict}
+- Failed test: ${attempt.failedTest ? JSON.stringify(attempt.failedTest) : "none"}
+- Code:
+${attempt.code}`;
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+        }),
+      }
+    );
+
+    if (!res.ok) {
+      console.error("Gemini API error:", res.status, await res.text());
+      return null;
+    }
+
+    const data = await res.json();
+    let text: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    text = text.replace(/```json|```/g, "").trim();
+
+    const parsed = JSON.parse(text);
+    if (!isValidFeedback(parsed)) {
+      console.error("Gemini returned invalid Feedback shape, falling back");
+      return null;
+    }
+    return parsed as Feedback;
+  } catch (err) {
+    console.error("Gemini call failed:", err);
+    return null;
+  }
+}
 
 export async function POST(req: Request) {
-  const body = await req.json();
-  const attempt = body?.attempt as Attempt | undefined;
-  const priorAttempts = (body?.priorAttempts ?? []) as Attempt[];
+  const attempt: Attempt = await req.json();
 
-  if (!attempt?.id || !attempt.verdict || !attempt.code) {
-    return NextResponse.json({ error: "attempt is required" }, { status: 400 });
+  if (!attempt.verdict) {
+    return NextResponse.json(
+      { error: "No verdict present — analysis is locked until a verdict exists." },
+      { status: 400 }
+    );
   }
 
-  // Heuristic baseline — always works with no API key.
-  // Person 2 can wrap Gemini around this and fall back here on bad JSON/tags.
-  const feedback = classify(attempt, priorAttempts);
-  return NextResponse.json(feedback);
+  const heuristicResult = classify(attempt);
+  const geminiResult = await callGemini(attempt, heuristicResult);
+
+  const finalFeedback = geminiResult ?? heuristicResult;
+  const aiGenerated = geminiResult !== null;
+
+  return NextResponse.json({ ...finalFeedback, aiGenerated });
 }
