@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRef, useState } from "react";
 import { ErrorMixChart } from "@/components/ErrorMixChart";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { exportJSON, importJSON } from "@/lib/ledger";
 import { seedDemo } from "@/lib/seed-demo";
 import { NEXT_DRILLS, TAG_LABELS } from "@/lib/taxonomy";
 import { useLedger } from "@/lib/useLedger";
@@ -12,6 +14,8 @@ import type { TaxonomyTag } from "@shared/types";
 
 export default function DashboardPage() {
   const { attempts, tags, loaded, refresh } = useLedger();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [bridgeMessage, setBridgeMessage] = useState<string | null>(null);
   const recent = [...attempts].reverse().slice(0, 8);
   const top = (Object.entries(tags) as [TaxonomyTag, number][])
     .sort((a, b) => b[1] - a[1])
@@ -29,15 +33,54 @@ export default function DashboardPage() {
             onClick={() => {
               seedDemo();
               refresh();
+              setBridgeMessage("Seeded a demo history.");
             }}
           >
             Seed demo
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              const blob = new Blob([exportJSON()], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = "mistake-ledger.json";
+              link.click();
+              URL.revokeObjectURL(url);
+              setBridgeMessage("Exported Attempt JSON for the extension bridge.");
+            }}
+          >
+            Export JSON
+          </Button>
+          <Button type="button" variant="outline" onClick={() => fileInput.current?.click()}>
+            Import JSON
+          </Button>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="application/json"
+            className="hidden"
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (!file) return;
+              try {
+                importJSON(await file.text());
+                refresh();
+                setBridgeMessage(`Imported ${file.name}.`);
+              } catch (cause) {
+                setBridgeMessage(cause instanceof Error ? cause.message : "Import failed.");
+              }
+            }}
+          />
           <Button asChild>
             <Link href="/practice">Go to Practice</Link>
           </Button>
         </div>
       </div>
+      {bridgeMessage ? <p className="text-sm text-muted-foreground">{bridgeMessage}</p> : null}
 
       <Card>
         <CardHeader>

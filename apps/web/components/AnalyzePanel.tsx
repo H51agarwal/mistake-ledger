@@ -3,14 +3,16 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TAG_LABELS } from "@/lib/taxonomy";
 
-export function AnalyzePanel({ feedback }: { feedback: Feedback }) {
+type AnalyzeFeedback = Feedback & { aiGenerated?: boolean };
+
+export function AnalyzePanel({ feedback }: { feedback: AnalyzeFeedback }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Analysis</CardTitle>
-        <p className="text-xs text-muted-foreground">
-          Heuristic analysis — not AI-generated. Gemini can refine this later.
-        </p>
+        <Badge variant={feedback.aiGenerated ? "default" : "secondary"}>
+          {feedback.aiGenerated ? "AI-generated" : "Rule-based"}
+        </Badge>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap gap-2">

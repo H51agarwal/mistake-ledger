@@ -25,7 +25,11 @@ function isValidFeedback(obj: unknown): obj is Feedback {
   return true;
 }
 
-async function callGemini(attempt: Attempt, heuristicResult: Feedback): Promise<Feedback | null> {
+async function callGemini(
+  attempt: Attempt,
+  heuristicResult: Feedback,
+  priorAttempts: Attempt[] = [],
+): Promise<Feedback | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
@@ -49,6 +53,9 @@ Rules:
 - Language: ${attempt.language}
 - Verdict: ${attempt.verdict}
 - Failed test: ${attempt.failedTest ? JSON.stringify(attempt.failedTest) : "none"}
+- Prior attempts on this problem (oldest first): ${JSON.stringify(
+    priorAttempts.map((item) => ({ verdict: item.verdict, timestamp: item.timestamp })),
+  )}
 - Code:
 ${attempt.code}`;
 
@@ -85,20 +92,49 @@ ${attempt.code}`;
   }
 }
 
-export async function POST(req: Request) {
-  const attempt: Attempt = await req.json();
+function parseAnalyzeBody(body: unknown): {
+  attempt: Attempt | null;
+  priorAttempts: Attempt[];
+} {
+  if (!body || typeof body !== "object") {
+    return { attempt: null, priorAttempts: [] };
+  }
 
-  if (!attempt.verdict) {
+  const record = body as Record<string, unknown>;
+  const wrapped = record.attempt;
+  if (wrapped && typeof wrapped === "object") {
+    return {
+      attempt: wrapped as Attempt,
+      priorAttempts: Array.isArray(record.priorAttempts) ? (record.priorAttempts as Attempt[]) : [],
+    };
+  }
+
+  return {
+    attempt: body as Attempt,
+    priorAttempts: Array.isArray(record.priorAttempts) ? (record.priorAttempts as Attempt[]) : [],
+  };
+}
+
+export async function POST(req: Request) {
+  const body = await req.json();
+  const { attempt, priorAttempts } = parseAnalyzeBody(body);
+
+  if (!attempt?.verdict || !attempt.code) {
     return NextResponse.json(
       { error: "No verdict present — analysis is locked until a verdict exists." },
       { status: 400 }
     );
   }
 
-  const heuristicResult = classify(attempt);
-  const geminiResult = await callGemini(attempt, heuristicResult);
+  const heuristicResult = classify(attempt, priorAttempts);
+  const geminiResult = await callGemini(attempt, heuristicResult, priorAttempts);
 
-  const finalFeedback = geminiResult ?? heuristicResult;
+  const finalFeedback = geminiResult
+    ? {
+        ...geminiResult,
+        chainNote: geminiResult.chainNote ?? heuristicResult.chainNote,
+      }
+    : heuristicResult;
   const aiGenerated = geminiResult !== null;
 
   return NextResponse.json({ ...finalFeedback, aiGenerated });
