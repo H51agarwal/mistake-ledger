@@ -42,16 +42,36 @@ export async function OPTIONS() {
   });
 }
 
+function sessionTimeline(session: Session | null) {
+  if (!session) return null;
+  const events = session.events.map((event) => ({
+    at: event.at,
+    kind: event.kind,
+    verdict: event.verdict,
+    message: event.message,
+  }));
+  return {
+    problemTitle: session.problemTitle,
+    startedAt: session.startedAt,
+    screenshotCount: session.events.filter((event) => event.kind === "screenshot").length,
+    runAndSubmit: events.filter((event) => event.kind !== "edit"),
+  };
+}
+
 async function callGemini(
   attempt: Attempt,
   heuristicResult: Feedback,
   priorAttempts: Attempt[] = [],
   screenshots: string[] = [],
+  session: Session | null = null,
 ): Promise<Feedback | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
-  const prompt = `You are a coding practice coach. Analyze this submission and respond with ONLY valid JSON matching this exact shape, no markdown fences, no extra text:
+  const timeline = sessionTimeline(session);
+  const shotCount = screenshots.length;
+
+  const prompt = `You are a post-solve observer. The user already finished this sitting. Analyze the coding PHASE (what happened while they worked), not only the final file. Respond with ONLY valid JSON matching this exact shape, no markdown fences, no extra text:
 
 {
   "tags": string[] (only from: ${VALID_TAGS.join(", ")}),
@@ -66,6 +86,10 @@ async function callGemini(
 Rules:
 - Do NOT provide a full corrected solution or suggest specific code fixes.
 - Do NOT suggest code changes.
+- Do NOT transcribe or reconstruct a solution from screenshots.
+- The silent screen recording is the primary evidence. ${shotCount} screenshot(s) of the coding phase are attached.
+- In summary and whatWentWrong, describe the workflow visible in those frames (editor layout, stuck loops, run/submit pattern). Mention that ${timeline?.screenshotCount ?? shotCount} silent shot(s) were stored.
+- Use the session timeline to say what went wrong during the sitting (failed runs before Analyze).
 - Base your tags on this heuristic baseline: ${JSON.stringify(heuristicResult.tags)}
 - Problem: ${attempt.problemTitle}
 - Language: ${attempt.language}
@@ -74,9 +98,9 @@ Rules:
 - Prior attempts on this problem (oldest first): ${JSON.stringify(
     priorAttempts.map((item) => ({ verdict: item.verdict, timestamp: item.timestamp })),
   )}
-- Code:
-${attempt.code}
-- ${screenshots.length} silent screenshot(s) of the coding phase may be attached. Use them only to describe the workflow. Do not solve the problem.`;
+- Session timeline: ${JSON.stringify(timeline)}
+- Final code:
+${attempt.code}`;
 
   const imageParts = screenshots
     .map(toInlineImage)
@@ -157,12 +181,12 @@ export async function POST(req: Request) {
     if (!attempt?.verdict || !attempt.code) {
       return NextResponse.json(
         { error: "No verdict present — analysis is locked until a verdict exists." },
-        { status: 400 }
+        { status: 400, headers: { "Access-Control-Allow-Origin": "*" } },
       );
     }
 
     const heuristicResult = classify(attempt, priorAttempts, session);
-    const geminiResult = await callGemini(attempt, heuristicResult, priorAttempts, screenshots);
+    const geminiResult = await callGemini(attempt, heuristicResult, priorAttempts, screenshots, session);
 
     const finalFeedback = geminiResult
       ? {
@@ -179,9 +203,11 @@ export async function POST(req: Request) {
       { headers: { "Access-Control-Allow-Origin": "*" } }
     );
   } catch (err) {
+    const message = err instanceof Error ? err.message : "Analyze failed.";
     console.error("Analyze route failed:", err);
     return NextResponse.json(
-      { error: "No verdict present — analysis is locked until a verdict exists." },
-      { status: 400, headers: { "Access-Control-Allow-Origin": "*" }});
+      { error: message },
+      { status: 500, headers: { "Access-Control-Allow-Origin": "*" } },
+    );
   }
 }

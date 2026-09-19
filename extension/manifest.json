@@ -4,7 +4,11 @@
   "version": "1.0",
   "description": "Contest-safe post-verdict coding feedback for LeetCode",
   "permissions": ["storage", "sidePanel"],
-  "host_permissions": ["https://leetcode.com/*"],
+  "host_permissions": [
+    "https://leetcode.com/*",
+    "http://localhost:3000/*",
+    "http://localhost:3001/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },

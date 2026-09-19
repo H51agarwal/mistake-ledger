@@ -150,9 +150,15 @@ function buildWentWrong(
   if (errorHistory.length > 1) {
     notes.push(`This session recorded ${errorHistory.length} distinct errors before Analyze.`);
   }
-  const shots = session?.events.filter((event) => event.kind === "screenshot").length ?? 0;
+  const events = session?.events ?? [];
+  const shots = events.filter((event) => event.kind === "screenshot").length;
+  const runs = events.filter((event) => event.kind === "run-error" || event.kind === "run-ok" || event.kind === "submit").length;
   if (shots > 0) {
-    notes.push(`${shots} silent screenshot(s) were stored from the coding phase.`);
+    notes.push(
+      `Coding-phase observer: ${shots} silent screenshot(s) and ${runs} run/submit event(s) were recorded before Analyze.`,
+    );
+  } else {
+    notes.push("No silent screenshots were stored — Watch screen was not running in this sitting.");
   }
   return notes;
 }

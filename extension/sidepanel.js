@@ -5,6 +5,29 @@ const feedbackDiv = document.getElementById("feedback");
 
 let currentVerdictData = null;
 
+const ANALYZE_URLS = [
+  "http://localhost:3000/api/analyze",
+  "http://localhost:3001/api/analyze",
+];
+
+async function postAnalyze(attempt) {
+  let lastError = new Error("Analyze request failed.");
+  for (const url of ANALYZE_URLS) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attempt, priorAttempts: [], session: null, screenshots: [] }),
+      });
+      if (res.ok || res.status === 400) return res;
+      lastError = new Error(`Request failed (${res.status})`);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
+  }
+  throw lastError;
+}
+
 function refreshVerdict() {
   chrome.storage.local.get("lastVerdict", (result) => {
     if (result.lastVerdict) {
@@ -39,11 +62,7 @@ analyzeBtn.addEventListener("click", async () => {
   analyzeBtn.disabled = true;
 
   try {
-    const res = await fetch("http://localhost:3000/api/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ attempt, priorAttempts: [], session: null, screenshots: [] }),
-    });
+    const res = await postAnalyze(attempt);
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));

@@ -60,7 +60,7 @@ export default function PracticeProblemPage() {
     );
   }
 
-  const canAnalyze = Boolean(attempt?.verdict);
+  const canAnalyze = Boolean(attempt?.verdict) && shotCount > 0;
 
   async function onRun() {
     setError(null);
@@ -119,7 +119,7 @@ export default function PracticeProblemPage() {
   }
 
   async function onAnalyze() {
-    if (!attempt?.verdict) return;
+    if (!attempt?.verdict || shotCount === 0) return;
     setError(null);
     setBusy("analyze");
     try {
@@ -160,7 +160,7 @@ export default function PracticeProblemPage() {
       </div>
       <p className="text-muted-foreground">{problem.prompt}</p>
       <p className="text-xs text-muted-foreground">
-        Export a function named <code>{problem.fnName}</code>. Screen watch, Run, and Submit are recorded silently. Analyze stays locked until you click it after a verdict.
+        Export a function named <code>{problem.fnName}</code>. Start <strong>Watch screen</strong> first — that recording is the product. Run and Submit stay silent. Analyze unlocks only after a verdict <em>and</em> at least one coding-phase screenshot.
       </p>
       <textarea
         className="w-full min-h-56 rounded-md border border-input bg-background p-3 font-mono text-sm"
@@ -171,7 +171,6 @@ export default function PracticeProblemPage() {
       <div className="flex items-center gap-2">
         <Button
           type="button"
-          variant="outline"
           disabled={busy !== null || watching || !sessionId}
           onClick={async () => {
             if (!sessionId) return;
@@ -188,12 +187,12 @@ export default function PracticeProblemPage() {
             }
           }}
         >
-          {watching ? `Watching (${shotCount})` : "Watch screen"}
+          {watching ? `Watching coding phase (${shotCount})` : "Watch screen"}
         </Button>
         <Button type="button" variant="outline" onClick={onRun} disabled={busy !== null}>
           {busy === "run" ? "Running…" : "Run"}
         </Button>
-        <Button type="button" onClick={onSubmit} disabled={busy !== null}>
+        <Button type="button" variant="outline" onClick={onSubmit} disabled={busy !== null}>
           {busy === "submit" ? "Judging…" : "Submit"}
         </Button>
         <Button
@@ -211,9 +210,13 @@ export default function PracticeProblemPage() {
           </Link>
         ) : null}
       </div>
-      {!canAnalyze ? (
+      {!attempt?.verdict ? (
         <p className="text-sm text-muted-foreground">
-          Analyze is disabled until a judge verdict exists. Grey-out is not the only lock — the handler also returns immediately.
+          Analyze stays locked until a judge verdict exists.
+        </p>
+      ) : shotCount === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Analyze also stays locked until Watch screen has stored a coding-phase screenshot. Share this tab, then click Analyze.
         </p>
       ) : null}
       {error ? <p className="text-sm text-destructive">{error}</p> : null}

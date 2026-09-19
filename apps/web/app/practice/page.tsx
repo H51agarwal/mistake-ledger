@@ -13,6 +13,9 @@ export default function PracticePage() {
           Dashboard
         </Link>
       </div>
+      <p className="text-sm text-muted-foreground">
+        Open a problem, click Watch screen, share this tab, then solve. The ledger remembers that coding phase and explains it only after Analyze.
+      </p>
       <ul className="space-y-3">
         {problems.map((problem) => (
           <li key={problem.slug}>
