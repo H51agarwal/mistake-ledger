@@ -12,7 +12,8 @@ import {
   saveAttempt,
   setAnalysis,
 } from "../lib/ledger";
-import { buildSeedAttempts, seedDemo, seedTagStats } from "../lib/seed-demo";
+import { buildSeedAttempts, buildSeedSession, seedDemo, seedTagStats } from "../lib/seed-demo";
+import { appendEvent, getSessions, startSession } from "../lib/session";
 import type { Attempt } from "@shared/types";
 
 const SOLUTIONS: Record<string, string> = {
@@ -231,10 +232,15 @@ function testLedger() {
   const tags = getAllTags();
   assert.equal(tags["off-by-one"], 7);
   const json = exportJSON();
+  const pack = JSON.parse(json) as { attempts: unknown[]; sessions: unknown[] };
+  assert.ok(Array.isArray(pack.attempts));
+  assert.ok(pack.sessions.length >= 1);
   clearAttempts();
   assert.equal(getAttempts().length, 0);
+  assert.equal(getSessions().length, 0);
   importJSON(json);
   assert.equal(getAttempts().length, seeded.length);
+  assert.equal(getSessions().some((item) => item.id === "seed-session-bs"), true);
 
   const first = getAttempts()[0];
   const updated = setAnalysis(first.id, classify(first, []));
@@ -248,8 +254,46 @@ function testLedger() {
   assert.ok(getAttempts().some((item) => item.id === "extra-1"));
 }
 
+function testSession() {
+  mockStorage();
+  clearAttempts();
+  const session = startSession({ problemSlug: "binary-search", problemTitle: "Binary Search" });
+  assert.equal(session.analysis, null);
+  const afterRun = appendEvent(session.id, {
+    kind: "run-error",
+    verdict: "CE",
+    message: "Unexpected end of input",
+    code: "function search(nums, target) {",
+  });
+  assert.ok(afterRun);
+  assert.equal(afterRun?.analysis, null);
+  appendEvent(session.id, { kind: "run-error", verdict: "WA", message: "last index" });
+  const afterSubmit = appendEvent(session.id, { kind: "submit", verdict: "AC", message: "AC" });
+  assert.equal(afterSubmit?.analysis, null);
+
+  const ac: Attempt = {
+    id: "sess-ac",
+    problemSlug: "binary-search",
+    problemTitle: "Binary Search",
+    platform: "mock",
+    language: "javascript",
+    code: "function search(nums, target) { return 0; }",
+    verdict: "AC",
+    timestamp: "2026-09-19T12:00:00.000Z",
+  };
+  const feedback = classify(ac, [], afterSubmit);
+  assert.ok(feedback.improvementNote);
+  assert.match(feedback.improvementNote ?? "", /AC/);
+  assert.ok((feedback.errorHistory?.length ?? 0) >= 1);
+
+  const seeded = buildSeedSession();
+  assert.equal(seeded.events.length, 3);
+  assert.ok(seeded.analysis?.improvementNote || seeded.analysis?.chainNote);
+}
+
 testJudgeSolutions();
 testHeuristics();
 testDiffAndSeed();
 testLedger();
+testSession();
 console.log("Person 1 self-test passed.");

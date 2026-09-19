@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Attempt, Feedback, TaxonomyTag } from "@shared/types";
+import { Attempt, Feedback, Session, TaxonomyTag } from "@shared/types";
 import { classify } from "@/lib/heuristics"; 
 
 const VALID_TAGS: TaxonomyTag[] = [
@@ -95,29 +95,33 @@ ${attempt.code}`;
 function parseAnalyzeBody(body: unknown): {
   attempt: Attempt | null;
   priorAttempts: Attempt[];
+  session: Session | null;
 } {
   if (!body || typeof body !== "object") {
-    return { attempt: null, priorAttempts: [] };
+    return { attempt: null, priorAttempts: [], session: null };
   }
 
   const record = body as Record<string, unknown>;
+  const session = record.session && typeof record.session === "object" ? (record.session as Session) : null;
   const wrapped = record.attempt;
   if (wrapped && typeof wrapped === "object") {
     return {
       attempt: wrapped as Attempt,
       priorAttempts: Array.isArray(record.priorAttempts) ? (record.priorAttempts as Attempt[]) : [],
+      session,
     };
   }
 
   return {
     attempt: body as Attempt,
     priorAttempts: Array.isArray(record.priorAttempts) ? (record.priorAttempts as Attempt[]) : [],
+    session,
   };
 }
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const { attempt, priorAttempts } = parseAnalyzeBody(body);
+  const { attempt, priorAttempts, session } = parseAnalyzeBody(body);
 
   if (!attempt?.verdict || !attempt.code) {
     return NextResponse.json(
@@ -126,13 +130,15 @@ export async function POST(req: Request) {
     );
   }
 
-  const heuristicResult = classify(attempt, priorAttempts);
+  const heuristicResult = classify(attempt, priorAttempts, session);
   const geminiResult = await callGemini(attempt, heuristicResult, priorAttempts);
 
   const finalFeedback = geminiResult
     ? {
         ...geminiResult,
         chainNote: geminiResult.chainNote ?? heuristicResult.chainNote,
+        improvementNote: geminiResult.improvementNote ?? heuristicResult.improvementNote,
+        errorHistory: geminiResult.errorHistory ?? heuristicResult.errorHistory,
       }
     : heuristicResult;
   const aiGenerated = geminiResult !== null;

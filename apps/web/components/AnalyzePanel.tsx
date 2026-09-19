@@ -71,6 +71,22 @@ export function AnalyzePanel({ feedback }: { feedback: AnalyzeFeedback }) {
             {feedback.chainNote}
           </p>
         ) : null}
+        {feedback.improvementNote ? (
+          <p className="text-sm">
+            <span className="font-medium">What improved: </span>
+            {feedback.improvementNote}
+          </p>
+        ) : null}
+        {feedback.errorHistory && feedback.errorHistory.length > 0 ? (
+          <div>
+            <h3 className="font-medium">Error history this session</h3>
+            <ul className="list-disc pl-5 text-muted-foreground">
+              {feedback.errorHistory.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

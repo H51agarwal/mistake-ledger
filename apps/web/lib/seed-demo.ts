@@ -1,7 +1,8 @@
-import type { Attempt } from "@shared/types";
+import type { Attempt, Session } from "@shared/types";
 import { classify } from "./heuristics";
 import { buildChainNote } from "./diff";
 import { clearAttempts, saveAttempt, getAttempts } from "./ledger";
+import { importSessions } from "./session";
 
 const TWO_SUM_HASH = `function twoSum(nums, target) {
   const seen = new Map();
@@ -342,11 +343,44 @@ export function buildSeedAttempts(): Attempt[] {
   return rows;
 }
 
+export function buildSeedSession(attempts: Attempt[] = buildSeedAttempts()): Session {
+  const chain = attempts.filter((item) => ["seed-bs-1", "seed-bs-2", "seed-bs-3"].includes(item.id));
+  const events = chain.map((item) => ({
+    id: `seed-event-${item.id}`,
+    at: item.timestamp,
+    kind: "submit" as const,
+    code: item.code,
+    message: item.failedTest
+      ? `${item.verdict}: expected ${item.failedTest.expected}, got ${item.failedTest.actual}`
+      : item.verdict,
+    verdict: item.verdict,
+    attemptId: item.id,
+  }));
+  const session: Session = {
+    id: "seed-session-bs",
+    problemSlug: "binary-search",
+    problemTitle: "Binary Search",
+    platform: "mock",
+    startedAt: chain[0]?.timestamp ?? new Date().toISOString(),
+    endedAt: chain[2]?.timestamp,
+    events,
+    attemptIds: chain.map((item) => item.id),
+    analysis: null,
+  };
+  const last = chain[2];
+  if (last) {
+    session.analysis = classify(last, chain.slice(0, 2), session);
+  }
+  return session;
+}
+
 export function seedDemo(): Attempt[] {
   clearAttempts();
-  for (const row of buildSeedAttempts()) {
+  const rows = buildSeedAttempts();
+  for (const row of rows) {
     saveAttempt(row);
   }
+  importSessions([buildSeedSession(rows)]);
   return getAttempts();
 }
 

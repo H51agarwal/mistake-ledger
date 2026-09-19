@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnalyzePanel } from "@/components/AnalyzePanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { attemptFromJudge, runJudge } from "@/lib/judge/runJudge";
 import { getProblem } from "@/lib/judge/problems";
 import { getAttempts, saveAttempt, setAnalysis } from "@/lib/ledger";
+import { getSession, recordJudgeResult, setSessionAnalysis, startSession } from "@/lib/session";
 import type { Attempt, Feedback } from "@shared/types";
 
 export default function PracticeProblemPage() {
@@ -19,8 +20,18 @@ export default function PracticeProblemPage() {
   const [code, setCode] = useState(problem?.starterCode ?? "");
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
-  const [busy, setBusy] = useState<"submit" | "analyze" | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"run" | "submit" | "analyze" | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!problem) return;
+    const session = startSession({
+      problemSlug: problem.slug,
+      problemTitle: problem.title,
+    });
+    setSessionId(session.id);
+  }, [problem]);
 
   if (!problem) {
     return (
@@ -33,6 +44,36 @@ export default function PracticeProblemPage() {
 
   const canAnalyze = Boolean(attempt?.verdict);
 
+  async function onRun() {
+    setError(null);
+    setFeedback(null);
+    setBusy("run");
+    try {
+      const result = await runJudge(code, problem.slug);
+      if (sessionId) {
+        recordJudgeResult({
+          sessionId,
+          kind: "run",
+          code,
+          verdict: result.verdict,
+          failedTest: result.failedTest,
+        });
+      }
+      setAttempt(
+        attemptFromJudge({
+          problemSlug: problem.slug,
+          code,
+          result,
+          id: attempt?.id ?? `run-${Date.now()}`,
+        }),
+      );
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function onSubmit() {
     setError(null);
     setFeedback(null);
@@ -41,6 +82,16 @@ export default function PracticeProblemPage() {
       const result = await runJudge(code, problem.slug);
       const next = attemptFromJudge({ problemSlug: problem.slug, code, result });
       saveAttempt(next);
+      if (sessionId) {
+        recordJudgeResult({
+          sessionId,
+          kind: "submit",
+          code,
+          verdict: next.verdict,
+          failedTest: next.failedTest,
+          attemptId: next.id,
+        });
+      }
       setAttempt(next);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -55,10 +106,11 @@ export default function PracticeProblemPage() {
     setBusy("analyze");
     try {
       const priorAttempts = getAttempts(attempt.problemSlug).filter((item) => item.id !== attempt.id);
+      const session = sessionId ? getSession(sessionId) ?? null : null;
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attempt, priorAttempts }),
+        body: JSON.stringify({ attempt, priorAttempts, session }),
       });
       if (!response.ok) {
         const body= await response.json().catch(() => ({}));
@@ -66,6 +118,7 @@ export default function PracticeProblemPage() {
       }
       const next = (await response.json()) as Feedback;
       setAnalysis(attempt.id, next);
+      if (sessionId) setSessionAnalysis(sessionId, next);
       setFeedback(next);
       setAttempt({ ...attempt, analysis: next });
     } catch (cause) {
@@ -85,7 +138,7 @@ export default function PracticeProblemPage() {
       </div>
       <p className="text-muted-foreground">{problem.prompt}</p>
       <p className="text-xs text-muted-foreground">
-        Export a function named <code>{problem.fnName}</code>. Analyze stays locked until Submit returns a verdict.
+        Export a function named <code>{problem.fnName}</code>. Run and Submit are recorded silently. Analyze stays locked until you click it after a verdict.
       </p>
       <textarea
         className="w-full min-h-56 rounded-md border border-input bg-background p-3 font-mono text-sm"
@@ -94,6 +147,9 @@ export default function PracticeProblemPage() {
         onChange={(event) => setCode(event.target.value)}
       />
       <div className="flex items-center gap-2">
+        <Button type="button" variant="outline" onClick={onRun} disabled={busy !== null}>
+          {busy === "run" ? "Running…" : "Run"}
+        </Button>
         <Button type="button" onClick={onSubmit} disabled={busy !== null}>
           {busy === "submit" ? "Judging…" : "Submit"}
         </Button>

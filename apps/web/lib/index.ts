@@ -11,7 +11,17 @@ export {
   LEDGER_STORAGE_KEY,
 } from "./ledger";
 export { buildChainNote, diffLines } from "./diff";
-export { seedDemo, buildSeedAttempts } from "./seed-demo";
+export { seedDemo, buildSeedAttempts, buildSeedSession } from "./seed-demo";
+export {
+  startSession,
+  appendEvent,
+  recordJudgeResult,
+  getSession,
+  getSessions,
+  setSessionAnalysis,
+  endSession,
+} from "./session";
+export { buildImprovementNote, distinctErrorHistory } from "./improvement";
 export {
   TAXONOMY_TAGS,
   TAG_LABELS,

@@ -1,4 +1,5 @@
-import type { Attempt, Feedback, TaxonomyTag } from "@shared/types";
+import type { Attempt, Feedback, Session, TaxonomyTag } from "@shared/types";
+import { clearSessions, getSessions, importSessions, isSession } from "./session";
 import { emptyTagCounts, isTaxonomyTag } from "./taxonomy";
 
 export const LEDGER_STORAGE_KEY = "mistake-ledger:attempts";
@@ -60,11 +61,33 @@ export function getAllTags(): Record<TaxonomyTag, number> {
 }
 
 export function exportJSON(): string {
-  return JSON.stringify(readAll(), null, 2);
+  return JSON.stringify({ attempts: readAll(), sessions: getSessions() }, null, 2);
 }
 
 export function importJSON(json: string): void {
-  const incoming = parseAttemptsJSON(json);
+  const parsed: unknown = JSON.parse(json);
+  if (Array.isArray(parsed)) {
+    mergeAttempts(parsed);
+    return;
+  }
+  if (parsed && typeof parsed === "object") {
+    const pack = parsed as { attempts?: unknown; sessions?: unknown };
+    if (Array.isArray(pack.attempts)) mergeAttempts(pack.attempts);
+    if (Array.isArray(pack.sessions)) {
+      importSessions(pack.sessions.filter(isSession));
+    }
+    return;
+  }
+  throw new Error("importJSON: expected an Attempt array or { attempts, sessions }.");
+}
+
+function mergeAttempts(rows: unknown[]): void {
+  const incoming = rows.map((row, index) => {
+    if (!isAttempt(row)) {
+      throw new Error(`importJSON: entry ${index} is not a valid Attempt.`);
+    }
+    return row;
+  });
   const byId = new Map(readAll().map((item) => [item.id, item]));
   for (const attempt of incoming) {
     byId.set(attempt.id, attempt);
@@ -74,6 +97,7 @@ export function importJSON(json: string): void {
 
 export function clearAttempts(): void {
   writeAll([]);
+  clearSessions();
 }
 
 export function parseAttemptsJSON(json: string): Attempt[] {

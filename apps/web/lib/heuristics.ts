@@ -1,21 +1,28 @@
-import type { Attempt, Feedback, TaxonomyTag } from "@shared/types";
+import type { Attempt, Feedback, Session, TaxonomyTag } from "@shared/types";
 import { buildChainNote } from "./diff";
+import { buildImprovementNote, distinctErrorHistory } from "./improvement";
 import { NEXT_DRILLS, TAG_DESCRIPTIONS } from "./taxonomy";
 
 const NEAR_TIMEOUT_MS = 1600;
 
-export function classify(attempt: Attempt, priorAttempts: Attempt[] = []): Feedback {
+export function classify(
+  attempt: Attempt,
+  priorAttempts: Attempt[] = [],
+  session?: Session | null,
+): Feedback {
   const tags = chooseTags(attempt);
   const chainNote = buildChainNote([...priorAttempts, attempt]);
   const complexity = estimateComplexity(attempt.code);
   const lineNotes = buildLineNotes(attempt, tags);
   const primary = tags[0];
+  const errorHistory = distinctErrorHistory(session);
+  const improvementNote = buildImprovementNote(session);
 
   return {
     tags,
     summary: buildSummary(attempt, tags),
-    whatWentWrong: buildWentWrong(attempt, tags),
-    whatWentWell: buildWentWell(attempt, tags),
+    whatWentWrong: buildWentWrong(attempt, tags, errorHistory),
+    whatWentWell: buildWentWell(attempt, tags, improvementNote),
     lineNotes,
     complexity,
     nextDrill: primary ? NEXT_DRILLS[primary] : {
@@ -23,6 +30,8 @@ export function classify(attempt: Attempt, priorAttempts: Attempt[] = []): Feedb
       reason: "No recurring failure tag on this attempt.",
     },
     ...(chainNote ? { chainNote } : {}),
+    ...(improvementNote ? { improvementNote } : {}),
+    ...(errorHistory.length ? { errorHistory } : {}),
   };
 }
 
@@ -120,7 +129,7 @@ function buildSummary(attempt: Attempt, tags: TaxonomyTag[]): string {
   return `${attempt.verdict} on ${attempt.problemTitle}. ${hint}`;
 }
 
-function buildWentWrong(attempt: Attempt, tags: TaxonomyTag[]): string[] {
+function buildWentWrong(attempt: Attempt, tags: TaxonomyTag[], errorHistory: string[] = []): string[] {
   const notes: string[] = [];
   if (attempt.verdict !== "AC") {
     notes.push(`Judge verdict: ${attempt.verdict}.`);
@@ -133,15 +142,21 @@ function buildWentWrong(attempt: Attempt, tags: TaxonomyTag[]): string[] {
   for (const tag of tags) {
     notes.push(TAG_DESCRIPTIONS[tag]);
   }
+  if (errorHistory.length > 1) {
+    notes.push(`This session recorded ${errorHistory.length} distinct errors before Analyze.`);
+  }
   return notes;
 }
 
-function buildWentWell(attempt: Attempt, tags: TaxonomyTag[]): string[] {
+function buildWentWell(attempt: Attempt, tags: TaxonomyTag[], improvementNote?: string): string[] {
   if (attempt.verdict === "AC" && !tags.includes("lucky-ac")) {
     return ["The function matched every hidden test, including the WA and TLE traps."];
   }
   if (attempt.verdict === "AC") {
     return ["It passed, so the core idea is close enough to keep."];
+  }
+  if (improvementNote) {
+    return [improvementNote];
   }
   if (attempt.verdict !== "CE") {
     return ["The function compiled and ran, so the remaining work is logic, not syntax."];

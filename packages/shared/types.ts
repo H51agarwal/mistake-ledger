@@ -35,4 +35,30 @@ export type Feedback = {
   complexity: { estimated: string; vsConstraints: string };
   nextDrill: { title: string; reason: string };
   chainNote?: string;
+  improvementNote?: string;
+  errorHistory?: string[];
+};
+
+export type SessionEventKind = "edit" | "run-error" | "run-ok" | "submit" | "analyze";
+
+export type SessionEvent = {
+  id: string;
+  at: string;
+  kind: SessionEventKind;
+  code?: string;
+  message?: string;
+  verdict?: Attempt["verdict"];
+  attemptId?: string;
+};
+
+export type Session = {
+  id: string;
+  problemSlug: string;
+  problemTitle: string;
+  platform: "mock" | "leetcode";
+  startedAt: string;
+  endedAt?: string;
+  events: SessionEvent[];
+  attemptIds: string[];
+  analysis?: Feedback | null;
 };
