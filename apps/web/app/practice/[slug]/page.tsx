@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnalyzePanel } from "@/components/AnalyzePanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { attemptFromJudge, runJudge } from "@/lib/judge/runJudge";
 import { getProblem } from "@/lib/judge/problems";
 import { getAttempts, saveAttempt, setAnalysis } from "@/lib/ledger";
-import { getSession, recordJudgeResult, setSessionAnalysis, startSession } from "@/lib/session";
+import { startPeriodicScreenshots, type ScreenWatch } from "@/lib/screen-capture";
+import { getLatestScreenshotDataUrls } from "@/lib/screenshots";
+import {
+  getSession,
+  recordJudgeResult,
+  recordSilentScreenshot,
+  setSessionAnalysis,
+  startSession,
+} from "@/lib/session";
 import type { Attempt, Feedback } from "@shared/types";
 
 export default function PracticeProblemPage() {
@@ -22,7 +30,10 @@ export default function PracticeProblemPage() {
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [busy, setBusy] = useState<"run" | "submit" | "analyze" | null>(null);
+  const [watching, setWatching] = useState(false);
+  const [shotCount, setShotCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const watchRef = useRef<ScreenWatch | null>(null);
 
   useEffect(() => {
     if (!problem) return;
@@ -32,6 +43,13 @@ export default function PracticeProblemPage() {
     });
     setSessionId(session.id);
   }, [problem]);
+
+  useEffect(() => {
+    return () => {
+      watchRef.current?.stop();
+      watchRef.current = null;
+    };
+  }, []);
 
   if (!problem) {
     return (
@@ -107,10 +125,14 @@ export default function PracticeProblemPage() {
     try {
       const priorAttempts = getAttempts(attempt.problemSlug).filter((item) => item.id !== attempt.id);
       const session = sessionId ? getSession(sessionId) ?? null : null;
+      const screenshots = sessionId ? await getLatestScreenshotDataUrls(sessionId, 3) : [];
+      watchRef.current?.stop();
+      watchRef.current = null;
+      setWatching(false);
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attempt, priorAttempts, session }),
+        body: JSON.stringify({ attempt, priorAttempts, session, screenshots }),
       });
       if (!response.ok) {
         const body= await response.json().catch(() => ({}));
@@ -138,7 +160,7 @@ export default function PracticeProblemPage() {
       </div>
       <p className="text-muted-foreground">{problem.prompt}</p>
       <p className="text-xs text-muted-foreground">
-        Export a function named <code>{problem.fnName}</code>. Run and Submit are recorded silently. Analyze stays locked until you click it after a verdict.
+        Export a function named <code>{problem.fnName}</code>. Screen watch, Run, and Submit are recorded silently. Analyze stays locked until you click it after a verdict.
       </p>
       <textarea
         className="w-full min-h-56 rounded-md border border-input bg-background p-3 font-mono text-sm"
@@ -147,6 +169,27 @@ export default function PracticeProblemPage() {
         onChange={(event) => setCode(event.target.value)}
       />
       <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy !== null || watching || !sessionId}
+          onClick={async () => {
+            if (!sessionId) return;
+            setError(null);
+            try {
+              const watch = await startPeriodicScreenshots(async (dataUrl) => {
+                await recordSilentScreenshot(sessionId, dataUrl);
+                setShotCount((count) => count + 1);
+              });
+              watchRef.current = watch;
+              setWatching(true);
+            } catch (cause) {
+              setError(cause instanceof Error ? cause.message : "Screen share was blocked.");
+            }
+          }}
+        >
+          {watching ? `Watching (${shotCount})` : "Watch screen"}
+        </Button>
         <Button type="button" variant="outline" onClick={onRun} disabled={busy !== null}>
           {busy === "run" ? "Running…" : "Run"}
         </Button>

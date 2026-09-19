@@ -16,6 +16,7 @@ export {
   startSession,
   appendEvent,
   recordJudgeResult,
+  recordSilentScreenshot,
   getSession,
   getSessions,
   setSessionAnalysis,

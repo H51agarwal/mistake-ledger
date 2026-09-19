@@ -145,6 +145,10 @@ function buildWentWrong(attempt: Attempt, tags: TaxonomyTag[], errorHistory: str
   if (errorHistory.length > 1) {
     notes.push(`This session recorded ${errorHistory.length} distinct errors before Analyze.`);
   }
+  const shots = session?.events.filter((event) => event.kind === "screenshot").length ?? 0;
+  if (shots > 0) {
+    notes.push(`${shots} silent screenshot(s) were stored from the coding phase.`);
+  }
   return notes;
 }
 

@@ -39,7 +39,7 @@ export type Feedback = {
   errorHistory?: string[];
 };
 
-export type SessionEventKind = "edit" | "run-error" | "run-ok" | "submit" | "analyze";
+export type SessionEventKind = "edit" | "run-error" | "run-ok" | "submit" | "analyze" | "screenshot";
 
 export type SessionEvent = {
   id: string;
@@ -49,6 +49,7 @@ export type SessionEvent = {
   message?: string;
   verdict?: Attempt["verdict"];
   attemptId?: string;
+  screenshotId?: string;
 };
 
 export type Session = {

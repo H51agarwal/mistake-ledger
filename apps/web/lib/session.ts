@@ -1,4 +1,5 @@
 import type { Attempt, Feedback, Session, SessionEvent, SessionEventKind } from "@shared/types";
+import { saveScreenshot } from "./screenshots";
 
 export const SESSION_STORAGE_KEY = "mistake-ledger:sessions";
 
@@ -77,6 +78,7 @@ export function appendEvent(
     ...(event.message ? { message: event.message } : {}),
     ...(event.verdict ? { verdict: event.verdict } : {}),
     ...(event.attemptId ? { attemptId: event.attemptId } : {}),
+    ...(event.screenshotId ? { screenshotId: event.screenshotId } : {}),
   };
 
   const session = sessions[index];
@@ -91,6 +93,21 @@ export function appendEvent(
   };
   writeAll(sessions);
   return sessions[index];
+}
+
+export async function recordSilentScreenshot(sessionId: string, dataUrl: string): Promise<Session | null> {
+  const id = newId();
+  await saveScreenshot({
+    id,
+    sessionId,
+    at: new Date().toISOString(),
+    dataUrl,
+  });
+  return appendEvent(sessionId, {
+    kind: "screenshot",
+    screenshotId: id,
+    message: "silent screenshot",
+  });
 }
 
 export function recordJudgeResult(input: {

@@ -25,10 +25,17 @@ function isValidFeedback(obj: unknown): obj is Feedback {
   return true;
 }
 
+function toInlineImage(dataUrl: string): { mime_type: string; data: string } | null {
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+  if (!match) return null;
+  return { mime_type: match[1], data: match[2] };
+}
+
 async function callGemini(
   attempt: Attempt,
   heuristicResult: Feedback,
   priorAttempts: Attempt[] = [],
+  screenshots: string[] = [],
 ): Promise<Feedback | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
@@ -57,7 +64,13 @@ Rules:
     priorAttempts.map((item) => ({ verdict: item.verdict, timestamp: item.timestamp })),
   )}
 - Code:
-${attempt.code}`;
+${attempt.code}
+- ${screenshots.length} silent screenshot(s) of the coding phase may be attached. Use them only to describe the workflow. Do not solve the problem.`;
+
+  const imageParts = screenshots
+    .map(toInlineImage)
+    .filter((part): part is { mime_type: string; data: string } => part !== null)
+    .map((part) => ({ inline_data: part }));
 
   try {
     const res = await fetch(
@@ -66,7 +79,7 @@ ${attempt.code}`;
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
+          contents: [{ parts: [{ text: prompt }, ...imageParts] }],
         }),
       }
     );
@@ -96,19 +109,24 @@ function parseAnalyzeBody(body: unknown): {
   attempt: Attempt | null;
   priorAttempts: Attempt[];
   session: Session | null;
+  screenshots: string[];
 } {
   if (!body || typeof body !== "object") {
-    return { attempt: null, priorAttempts: [], session: null };
+    return { attempt: null, priorAttempts: [], session: null, screenshots: [] };
   }
 
   const record = body as Record<string, unknown>;
   const session = record.session && typeof record.session === "object" ? (record.session as Session) : null;
+  const screenshots = Array.isArray(record.screenshots)
+    ? record.screenshots.filter((item): item is string => typeof item === "string").slice(-3)
+    : [];
   const wrapped = record.attempt;
   if (wrapped && typeof wrapped === "object") {
     return {
       attempt: wrapped as Attempt,
       priorAttempts: Array.isArray(record.priorAttempts) ? (record.priorAttempts as Attempt[]) : [],
       session,
+      screenshots,
     };
   }
 
@@ -116,12 +134,13 @@ function parseAnalyzeBody(body: unknown): {
     attempt: body as Attempt,
     priorAttempts: Array.isArray(record.priorAttempts) ? (record.priorAttempts as Attempt[]) : [],
     session,
+    screenshots,
   };
 }
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const { attempt, priorAttempts, session } = parseAnalyzeBody(body);
+  const { attempt, priorAttempts, session, screenshots } = parseAnalyzeBody(body);
 
   if (!attempt?.verdict || !attempt.code) {
     return NextResponse.json(
@@ -131,7 +150,7 @@ export async function POST(req: Request) {
   }
 
   const heuristicResult = classify(attempt, priorAttempts, session);
-  const geminiResult = await callGemini(attempt, heuristicResult, priorAttempts);
+  const geminiResult = await callGemini(attempt, heuristicResult, priorAttempts, screenshots);
 
   const finalFeedback = geminiResult
     ? {
