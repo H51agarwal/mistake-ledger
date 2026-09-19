@@ -31,6 +31,17 @@ function toInlineImage(dataUrl: string): { mime_type: string; data: string } | n
   return { mime_type: match[1], data: match[2] };
 }
 
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    },
+  });
+}
+
 async function callGemini(
   attempt: Attempt,
   heuristicResult: Feedback,
@@ -163,10 +174,14 @@ export async function POST(req: Request) {
       : heuristicResult;
     const aiGenerated = geminiResult !== null;
 
-    return NextResponse.json({ ...finalFeedback, aiGenerated });
+    return NextResponse.json(
+      { ...finalFeedback, aiGenerated },
+      { headers: { "Access-Control-Allow-Origin": "*" } }
+    );
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Analyze failed.";
     console.error("Analyze route failed:", err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: "No verdict present — analysis is locked until a verdict exists." },
+      { status: 400, headers: { "Access-Control-Allow-Origin": "*" }});
   }
 }

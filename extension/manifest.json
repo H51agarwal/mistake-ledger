@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Post-Solve Mistake Ledger",
+  "version": "1.0",
+  "description": "Contest-safe post-verdict coding feedback for LeetCode",
+  "permissions": ["storage", "sidePanel"],
+  "host_permissions": ["https://leetcode.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://leetcode.com/problems/*"],
+      "js": ["content-script.js"]
+    }
+  ],
+  "action": {
+    "default_title": "Mistake Ledger"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  }
+}
