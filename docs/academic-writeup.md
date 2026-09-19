@@ -24,7 +24,7 @@ The unit of value is the ledger (tag frequencies + WA → WA → AC chains), not
 - Local `Attempt` ledger with JSON import/export (same shape as the Chrome extension bridge)
 - Dashboard: error-mix chart, top recurring tag, next drill
 - `/api/analyze`: heuristics first; Gemini Flash receives the session timeline plus the last 3 screenshots as vision `inline_data` and must describe workflow, not extract a solution. Schema/tag validation; fallback on failure. CORS `OPTIONS` so the extension can call the same route.
-- Chrome extension (Manifest V3): watches LeetCode for a verdict, unlocks Analyze, user pastes code. It does not watch the screen — that core path is the web practice page.
+- Chrome extension (Manifest V3): side panel sits beside LeetCode. **Watch tab** captures the visible problem tab silently (JPEG, ~12s, max 24). Content script reads the editor and the verdict. Analyze is locked until a verdict and at least one shot; it posts the same `{ attempt, session, screenshots }` body as the web app. Paste is only a fallback if Monaco scrape is empty.
 
 ## Ethics (screen capture)
 
@@ -42,7 +42,7 @@ A full user study is optional for this course. Minimum evidence:
 
 - Gemini quality and quota; the app must still run on heuristics alone
 - Mock judge is JavaScript-only; no in-browser Python
-- LeetCode extension depends on third-party DOM and has no screen observer; demo the web Watch screen path first
+- LeetCode extension depends on third-party DOM and `captureVisibleTab` (the tab must stay visible). Demo web Watch screen if the site markup changes.
 - Hidden tests on real judges are not always visible
 - Tags are a closed set; they compress nuance
 
