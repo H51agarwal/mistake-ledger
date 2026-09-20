@@ -72,7 +72,7 @@ export default function AttemptPage() {
         <AnalyzePanel feedback={attempt.analysis} />
       ) : (
         <p className="text-sm text-muted-foreground">
-          No analysis stored yet. Open practice, submit, then Analyze after the verdict.
+          No analysis stored yet. Use the Chrome extension on LeetCode, then Analyze after the verdict.
         </p>
       )}
       <Card>

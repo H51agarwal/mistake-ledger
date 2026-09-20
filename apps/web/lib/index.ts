@@ -1,4 +1,5 @@
 export { classify, chooseTags } from "./heuristics";
+export { resolveLanguage, inferLanguageFromCode, normalizeLanguageLabel } from "./language";
 export {
   saveAttempt,
   getAttempts,

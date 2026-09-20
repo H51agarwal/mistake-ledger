@@ -75,9 +75,6 @@ export default function DashboardPage() {
               }
             }}
           />
-          <Button asChild>
-            <Link href="/practice">Go to Practice</Link>
-          </Button>
         </div>
       </div>
       {bridgeMessage ? <p className="text-sm text-muted-foreground">{bridgeMessage}</p> : null}
@@ -114,7 +111,7 @@ export default function DashboardPage() {
           {!loaded ? (
             <p className="text-muted-foreground text-sm">Loading…</p>
           ) : recent.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No attempts yet. Seed the demo or solve a practice problem.</p>
+            <p className="text-muted-foreground text-sm">No attempts yet. Seed the demo or import JSON from the extension.</p>
           ) : (
             <ul className="space-y-2">
               {recent.map((attempt) => (

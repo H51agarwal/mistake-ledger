@@ -5,7 +5,6 @@
   <title>Mistake Ledger</title>
   <style>
     body { font-family: system-ui, sans-serif; padding: 16px; width: 320px; }
-    textarea { width: 100%; height: 140px; font-family: monospace; font-size: 12px; box-sizing: border-box; }
     button { margin-top: 8px; margin-right: 6px; padding: 6px 12px; cursor: pointer; }
     button:disabled { cursor: not-allowed; opacity: 0.5; }
     #verdict-badge, #watch-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; background: #eee; margin-bottom: 8px; font-size: 12px; }
@@ -18,12 +17,10 @@
   <div id="watch-badge">Not watching</div>
   <div id="verdict-badge">No verdict yet</div>
   <p class="hint">
-    This panel sits beside LeetCode. Click Watch tab first — that recording is the product.
-    Keep solving on the site. Analyze unlocks only after a verdict and at least one silent screenshot.
+    Click Watch tab. Chrome will ask which screen to share — choose the LeetCode tab, not the whole screen.
+    Analyze unlocks only after you submit on LeetCode and at least one silent screenshot is stored.
   </p>
   <button id="watch-btn">Watch tab</button>
-  <textarea id="code-input" placeholder="Code is pulled from the editor when possible. Paste if it is empty."></textarea>
-  <br />
   <button id="analyze-btn" disabled>Analyze</button>
   <div id="feedback"></div>
   <script src="sidepanel.js"></script>

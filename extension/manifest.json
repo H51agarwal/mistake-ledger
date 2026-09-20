@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Post-Solve Mistake Ledger",
-  "version": "1.1",
+  "version": "1.13",
   "description": "Sits beside LeetCode, watches the coding phase silently, and explains only after Analyze.",
-  "permissions": ["storage", "sidePanel", "tabs", "alarms"],
+  "permissions": ["storage", "sidePanel", "tabs", "scripting"],
   "host_permissions": [
     "https://leetcode.com/*",
     "http://localhost:3000/*",
@@ -15,7 +15,8 @@
   "content_scripts": [
     {
       "matches": ["https://leetcode.com/problems/*"],
-      "js": ["content-script.js"]
+      "js": ["content-script.js"],
+      "all_frames": true
     }
   ],
   "action": {

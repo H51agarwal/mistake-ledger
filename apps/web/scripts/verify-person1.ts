@@ -210,6 +210,68 @@ function testHeuristics() {
   const feedback = classify(base, []);
   assert.ok(feedback.summary.length > 0);
   assert.ok(feedback.nextDrill.title.length > 0);
+
+  const cppHash = `class Solution {
+public:
+    vector<int> twoSum(vector<int>& nums, int target) {
+        unordered_map<int, int> mp;
+        for (int i = 0; i < nums.size(); i++) {
+            if (mp.count(target - nums[i])) return {mp[target - nums[i]], i};
+            mp[nums[i]] = i;
+        }
+        return {};
+    }
+};`;
+  assert.deepEqual(
+    chooseTags({
+      ...base,
+      language: "unknown",
+      verdict: "AC",
+      runtimeMs: 12,
+      failedTest: null,
+      code: cppHash,
+    }),
+    [],
+  );
+
+  const pythonNested = `class Solution:
+    def twoSum(self, nums, target):
+        for i in range(len(nums)):
+            for j in range(i + 1, len(nums)):
+                if nums[i] + nums[j] == target:
+                    return [i, j]
+        return []`;
+  assert.deepEqual(
+    chooseTags({
+      ...base,
+      language: "unknown",
+      problemSlug: "two-sum",
+      problemTitle: "Two Sum",
+      verdict: "WA",
+      code: pythonNested,
+      failedTest: { input: "twoSumTle n=25000 target=1 (no pair)", expected: "[]", actual: "TLE" },
+    }),
+    ["tle-complexity"],
+  );
+
+  const cppCe = classify({
+    ...base,
+    language: "unknown",
+    verdict: "CE",
+    code: "class Solution {\npublic:\n    vector<int> twoSum(vector<int>& nums, int target) {\n",
+    failedTest: null,
+  });
+  assert.match(cppCe.whatWentWrong.join(" "), /C\+\+|semicolon|signature/i);
+  assert.match(cppCe.nextDrill.title, /Solution method|Compile/i);
+
+  const pyCe = classify({
+    ...base,
+    language: "Python3",
+    verdict: "CE",
+    code: "class Solution:\n    def twoSum(self, nums, target)\n        return []\n",
+    failedTest: null,
+  });
+  assert.match(pyCe.whatWentWrong.join(" "), /indent|def|colon/i);
 }
 
 function testDiffAndSeed() {

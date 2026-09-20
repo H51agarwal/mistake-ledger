@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Attempt, Feedback, Session, TaxonomyTag } from "@shared/types";
-import { classify } from "@/lib/heuristics"; 
+import { classify } from "@/lib/heuristics";
+import { resolveLanguage } from "@/lib/language"; 
 
 const VALID_TAGS: TaxonomyTag[] = [
   "syntax",
@@ -93,6 +94,7 @@ Rules:
 - Base your tags on this heuristic baseline: ${JSON.stringify(heuristicResult.tags)}
 - Problem: ${attempt.problemTitle}
 - Language: ${attempt.language}
+- Write notes using this language's idioms (C++ STL, Python builtins, Java collections, or JS arrays). Do not assume JavaScript unless the language is JavaScript.
 - Verdict: ${attempt.verdict}
 - Failed test: ${attempt.failedTest ? JSON.stringify(attempt.failedTest) : "none"}
 - Prior attempts on this problem (oldest first): ${JSON.stringify(
@@ -185,8 +187,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const heuristicResult = classify(attempt, priorAttempts, session);
-    const geminiResult = await callGemini(attempt, heuristicResult, priorAttempts, screenshots, session);
+    const resolvedAttempt = {
+      ...attempt,
+      language: resolveLanguage(attempt.language, attempt.code),
+    };
+    const heuristicResult = classify(resolvedAttempt, priorAttempts, session);
+    const geminiResult = await callGemini(resolvedAttempt, heuristicResult, priorAttempts, screenshots, session);
 
     const finalFeedback = geminiResult
       ? {
