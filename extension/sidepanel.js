@@ -165,6 +165,8 @@ function applyState(state) {
       : "Not watching";
   watchBtn.disabled = watching && shotCount > 0;
   watchBtn.textContent = watching && shotCount === 0 ? "Retry watch" : watching ? "Watching…" : "Watch tab";
+  watchBadge.setAttribute("data-state", watching ? "watching" : shotCount > 0 ? "stopped" : "idle");
+  verdictBadge.setAttribute("data-state", sameProblem() && currentVerdictData ? currentVerdictData.verdict : "none");
 
   if (state.lastError) {
     feedbackDiv.textContent = state.lastError;
@@ -256,30 +258,61 @@ analyzeBtn.addEventListener("click", async () => {
   }
 });
 
+const TAG_COLORS = {
+  "syntax": { color: "#FF4D6D", bg: "rgba(255,77,109,0.15)" },
+  "off-by-one": { color: "#1AB8FF", bg: "rgba(26,184,255,0.15)" },
+  "wrong-ds": { color: "#1AB8FF", bg: "rgba(26,184,255,0.15)" },
+  "tle-complexity": { color: "#FFB020", bg: "rgba(255,176,32,0.15)" },
+  "overflow-modulo": { color: "#FFB020", bg: "rgba(255,176,32,0.15)" },
+  "missed-constraint": { color: "#FF4D6D", bg: "rgba(255,77,109,0.15)" },
+  "implementation-slip": { color: "#B29CFF", bg: "rgba(178,156,255,0.15)" },
+  "lucky-ac": { color: "#00F5C8", bg: "rgba(0,245,200,0.15)" },
+};
+
 function renderFeedback(feedback) {
-  const lines = [];
-  lines.push(`[${feedback.aiGenerated ? "AI-generated" : "Rule-based"}]`);
-  lines.push(`Tags: ${feedback.tags.join(", ") || "none"}`);
-  lines.push("");
-  lines.push(feedback.summary);
+  feedbackDiv.innerHTML = "";
+
+  const badge = document.createElement("span");
+  badge.className = "fb-badge " + (feedback.aiGenerated ? "ai" : "rule");
+  badge.textContent = feedback.aiGenerated ? "AI-GENERATED" : "RULE-BASED";
+  feedbackDiv.appendChild(badge);
+  feedbackDiv.appendChild(document.createElement("br"));
+
+  (feedback.tags?.length ? feedback.tags : ["no-tag"]).forEach((tag) => {
+    const t = document.createElement("span");
+    const c = TAG_COLORS[tag] || { color: "#7C8B9E", bg: "rgba(124,139,158,0.15)" };
+    t.className = "fb-tag";
+    t.style.color = c.color;
+    t.style.background = c.bg;
+    t.textContent = tag;
+    feedbackDiv.appendChild(t);
+  });
+
+  const addSection = (label, content) => {
+    const h = document.createElement("div");
+    h.className = "fb-section";
+    h.textContent = label;
+    feedbackDiv.appendChild(h);
+    const body = document.createElement("div");
+    body.className = "fb-line";
+    body.textContent = content;
+    feedbackDiv.appendChild(body);
+  };
+
+  addSection("Summary", feedback.summary || "");
+
   if (feedback.whatWentWrong?.length) {
-    lines.push("");
-    lines.push("What went wrong:");
-    feedback.whatWentWrong.forEach((w) => lines.push("- " + w));
+    addSection("What went wrong", feedback.whatWentWrong.map((w) => "· " + w).join("\n"));
   }
   if (feedback.improvementNote) {
-    lines.push("");
-    lines.push("Improvement: " + feedback.improvementNote);
+    addSection("Improvement", feedback.improvementNote);
   }
   if (feedback.errorHistory?.length) {
-    lines.push("");
-    lines.push("Session errors: " + feedback.errorHistory.join(" · "));
+    addSection("Session errors", feedback.errorHistory.join(" · "));
   }
   if (feedback.nextDrill) {
-    lines.push("");
-    lines.push(`Next drill: ${feedback.nextDrill.title}`);
+    addSection("Next drill", feedback.nextDrill.title || "");
   }
-  feedbackDiv.textContent = lines.join("\n");
 }
 
 setInterval(refreshState, 1000);

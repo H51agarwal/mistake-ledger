@@ -8,9 +8,15 @@ type AnalyzeFeedback = Feedback & { aiGenerated?: boolean };
 export function AnalyzePanel({ feedback }: { feedback: AnalyzeFeedback }) {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle>Analysis</CardTitle>
-        <Badge variant={feedback.aiGenerated ? "default" : "secondary"}>
+        <Badge
+          className={
+            feedback.aiGenerated
+              ? "font-mono border-transparent bg-secondary/15 text-secondary"
+              : "font-mono border-transparent bg-muted text-muted-foreground"
+          }
+        >
           {feedback.aiGenerated ? "AI-generated" : "Rule-based"}
         </Badge>
       </CardHeader>
@@ -20,7 +26,9 @@ export function AnalyzePanel({ feedback }: { feedback: AnalyzeFeedback }) {
             <Badge variant="secondary">no mistake tag</Badge>
           ) : (
             feedback.tags.map((tag) => (
-              <Badge key={tag}>{TAG_LABELS[tag]}</Badge>
+              <Badge key={tag} className="font-mono bg-accent text-accent-foreground border-transparent">
+                {TAG_LABELS[tag]}
+              </Badge>
             ))
           )}
         </div>

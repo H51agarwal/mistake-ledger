@@ -4,18 +4,181 @@
   <meta charset="UTF-8" />
   <title>Mistake Ledger</title>
   <style>
-    body { font-family: system-ui, sans-serif; padding: 16px; width: 320px; }
-    button { margin-top: 8px; margin-right: 6px; padding: 6px 12px; cursor: pointer; }
-    button:disabled { cursor: not-allowed; opacity: 0.5; }
-    #verdict-badge, #watch-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; background: #eee; margin-bottom: 8px; font-size: 12px; }
-    #feedback { margin-top: 12px; font-size: 13px; white-space: pre-wrap; }
-    p.hint { font-size: 12px; color: #666; }
+    :root {
+      --bg: #0A0E16;
+      --card: #10151F;
+      --card-alt: #141A26;
+      --border: #1E2A3A;
+      --teal: #00F5C8;
+      --blue: #1AB8FF;
+      --pink: #FF4D6D;
+      --amber: #FFB020;
+      --purple: #B29CFF;
+      --text: #E8F1FF;
+      --muted: #7C8B9E;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 16px;
+      width: 340px;
+      margin: 0;
+    }
+
+    h3 {
+      margin: 0 0 12px 0;
+      font-size: 15px;
+      letter-spacing: 0.02em;
+    }
+    h3::before {
+      content: "▸ ";
+      color: var(--teal);
+    }
+
+    /* --- Status badges --- */
+    #watch-badge, #verdict-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      margin-right: 6px;
+      font-size: 11.5px;
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--muted);
+      transition: all 0.2s ease;
+    }
+
+    #watch-badge[data-state="watching"] {
+      color: var(--teal);
+      border-color: var(--teal);
+      background: rgba(0, 245, 200, 0.1);
+      animation: pulse-glow 1.8s ease-in-out infinite;
+    }
+    #watch-badge[data-state="stopped"] {
+      color: var(--blue);
+      border-color: var(--blue);
+      background: rgba(26, 184, 255, 0.1);
+    }
+
+    #verdict-badge[data-state="AC"] {
+      color: var(--teal);
+      border-color: var(--teal);
+      background: rgba(0, 245, 200, 0.12);
+      box-shadow: 0 0 10px rgba(0, 245, 200, 0.25);
+    }
+    #verdict-badge[data-state="WA"],
+    #verdict-badge[data-state="CE"],
+    #verdict-badge[data-state="RE"] {
+      color: var(--pink);
+      border-color: var(--pink);
+      background: rgba(255, 77, 109, 0.12);
+      box-shadow: 0 0 10px rgba(255, 77, 109, 0.25);
+    }
+    #verdict-badge[data-state="TLE"] {
+      color: var(--amber);
+      border-color: var(--amber);
+      background: rgba(255, 176, 32, 0.12);
+      box-shadow: 0 0 10px rgba(255, 176, 32, 0.25);
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 6px rgba(0, 245, 200, 0.2); }
+      50% { box-shadow: 0 0 16px rgba(0, 245, 200, 0.55); }
+    }
+
+    p.hint {
+      font-size: 11.5px;
+      color: var(--muted);
+      line-height: 1.5;
+      margin: 4px 0 12px 0;
+    }
+
+    /* --- Buttons --- */
+    button {
+      margin-top: 4px;
+      margin-right: 6px;
+      padding: 7px 14px;
+      cursor: pointer;
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 600;
+      transition: all 0.15s ease;
+    }
+    button:hover:not(:disabled) {
+      border-color: var(--teal);
+      box-shadow: 0 0 10px rgba(0, 245, 200, 0.25);
+    }
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.35;
+    }
+    #analyze-btn:not(:disabled) {
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+    #analyze-btn:not(:disabled):hover {
+      box-shadow: 0 0 10px rgba(26, 184, 255, 0.35);
+    }
+
+    /* --- Feedback terminal panel --- */
+    #feedback {
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: var(--card-alt);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text);
+      min-height: 20px;
+      white-space: pre-wrap;
+    }
+    #feedback:empty { display: none; }
+
+    .fb-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 5px;
+      font-size: 10.5px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .fb-badge.ai { color: var(--blue); background: rgba(26, 184, 255, 0.15); }
+    .fb-badge.rule { color: var(--muted); background: rgba(124, 139, 158, 0.15); }
+
+    .fb-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 5px;
+      font-size: 10.5px;
+      font-weight: 600;
+      margin: 0 4px 4px 0;
+    }
+    .fb-section {
+      margin-top: 10px;
+      color: var(--teal);
+      font-weight: 700;
+    }
+    .fb-section::before { content: "▸ "; }
+    .fb-line { color: var(--text); }
+    .fb-muted { color: var(--muted); }
   </style>
 </head>
 <body>
   <h3>Post-Solve Mistake Ledger</h3>
-  <div id="watch-badge">Not watching</div>
-  <div id="verdict-badge">No verdict yet</div>
+  <div id="watch-badge" data-state="idle">Not watching</div>
+  <div id="verdict-badge" data-state="none">No verdict yet</div>
   <p class="hint">
     Click Watch tab. Chrome will ask which screen to share — choose the LeetCode tab, not the whole screen.
     Analyze unlocks only after you submit on LeetCode and at least one silent screenshot is stored.
